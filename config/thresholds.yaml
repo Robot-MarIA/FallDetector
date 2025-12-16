@@ -1,0 +1,121 @@
+# Pose classification and quality thresholds
+# All values are calibratable - adjust based on empirical testing
+
+pose:
+  # Torso angle thresholds (degrees from horizontal)
+  torso_angle_lying: 25.0          # < 25° from horizontal = likely lying
+  torso_angle_sitting: 45.0        # 25-45° = sitting or kneeling range
+  torso_angle_standing: 70.0       # > 70° = standing/normal
+  
+  # Height ratio thresholds (relative to estimated standing height)
+  height_ratio_floor: 0.35         # hips below 35% = floor level
+  height_ratio_sitting: 0.55       # hips at 35-55% = sitting height
+  
+  # Bounding box aspect ratio (width/height)
+  aspect_ratio_lying: 1.8          # > 1.8 = horizontal orientation
+  aspect_ratio_normal: 0.6         # < 0.6 = vertical/standing
+  
+  # Skeleton compactness (normalized spread)
+  compactness_fetal: 0.4           # < 0.4 = very compact (fetal position)
+  compactness_spread: 0.7          # > 0.7 = spread out
+  
+  # Floor detection proxy
+  bbox_bottom_threshold: 0.85      # bbox bottom > 85% of frame = near floor
+  bbox_bottom_persistence: 5       # frames needed to confirm floor contact
+
+quality:
+  # Minimum requirements
+  min_keypoints: 6                 # minimum visible keypoints
+  min_confidence: 0.5              # minimum keypoint confidence
+  
+  # Torso detection (critical for reliable classification)
+  torso_required: true
+  torso_missing_penalty: 0.2       # quality *= 0.2 if torso missing
+  
+  # Jitter detection (normalized by bbox size)
+  jitter_penalty_threshold: 0.1    # jitter > 10% of bbox = penalty
+  jitter_penalty_factor: 0.3       # quality -= jitter * factor
+  
+  # Quality gates
+  min_quality_for_confirmation: 0.4  # quality < 0.4 = cannot confirm NEEDS_HELP
+  extreme_geometry_override: 0.25    # BUT if quality > 0.25 AND extreme geometry, allow
+
+temporal:
+  # Base confirmation window (adjusted dynamically)
+  base_window_seconds: 2.5
+  min_window_seconds: 1.0
+  max_window_seconds: 5.0
+  
+  # Adaptation factors
+  stability_weight: 0.4            # stable pose = faster confirmation
+  quality_weight: 0.3              # high quality = faster confirmation
+  risk_clarity_weight: 0.3         # clear risk signals = faster confirmation
+  
+  # Stability detection
+  stability_threshold: 0.8         # position variance < 20% = stable
+  pose_change_threshold: 0.15      # > 15% change = pose changed
+
+risk:
+  # Risk score thresholds for state mapping
+  risk_needs_help: 0.7             # risk > 0.7 = NEEDS_HELP candidate
+  risk_warning: 0.4                # risk 0.4-0.7 = RISK state
+  risk_ok: 0.2                     # risk < 0.2 = OK state
+  
+  # Internal pose weights for risk calculation
+  weight_lying: 0.9
+  weight_sitting_floor: 0.8
+  weight_all_fours: 0.85
+  weight_kneeling: 0.5
+  weight_normal: 0.1
+
+person_selection:
+  method: "largest_bbox"           # "largest_bbox" or "most_centered"
+  center_weight: 0.3               # weight for center proximity (if hybrid)
+  min_bbox_area: 0.01              # minimum bbox area as fraction of frame
+
+# COCO keypoint indices for reference
+keypoints:
+  nose: 0
+  left_eye: 1
+  right_eye: 2
+  left_ear: 3
+  right_ear: 4
+  left_shoulder: 5
+  right_shoulder: 6
+  left_elbow: 7
+  right_elbow: 8
+  left_wrist: 9
+  right_wrist: 10
+  left_hip: 11
+  right_hip: 12
+  left_knee: 13
+  right_knee: 14
+  left_ankle: 15
+  right_ankle: 16
+
+# Depth-based detection thresholds (Intel RealSense D435i)
+# Camera setup: 0.63m height, ~1.5m distance, legs/hips visible
+depth:
+  # Height thresholds in METERS
+  hip_floor_thresh_m: 0.30        # hip < 30cm = on floor
+  knee_floor_thresh_m: 0.20       # knee < 20cm = on floor
+  
+  # Elevated surface detection (sofa/bed = NOT floor)
+  sofa_min_height_m: 0.35         # 35-80cm = likely on sofa/bed
+  sofa_max_height_m: 0.80
+  
+  # Fall event detection
+  drop_thresh_m: 0.35             # vertical drop > 35cm in window = fall event
+  vel_thresh_mps: 0.60            # downward velocity > 0.6 m/s = falling
+  
+  # Persistence for confirmation
+  persistence_confirm_s: 1.00     # 1 second on floor = confirmed
+  temporal_window_s: 1.20         # window for drop/velocity analysis
+  
+  # Quality gates
+  min_floor_quality: 0.55         # RANSAC inlier ratio for valid plane
+  min_depth_valid_ratio: 0.50     # at least 50% of keypoints have valid depth
+  
+  # Sampling
+  depth_sample_win: 7             # 7x7 median window for robust sampling
+

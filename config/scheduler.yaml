@@ -1,0 +1,56 @@
+# Adaptive scheduler configuration
+# Controls FPS, resolution, and inference frequency based on system state
+
+modes:
+  LOW_POWER:
+    fps: 2                         # Target frames per second
+    resolution_scale: 0.5          # Scale factor for input resolution
+    inference_skip: 2              # Process every Nth frame (1 = all frames)
+    description: "Minimal resource usage when situation is stable and safe"
+    
+  CHECKING:
+    fps: 12
+    resolution_scale: 0.75
+    inference_skip: 1
+    duration_seconds: 3.0          # How long to stay in CHECKING before deciding
+    description: "Elevated monitoring when uncertainty or potential risk detected"
+    
+  CONFIRMING:
+    fps: 15
+    resolution_scale: 1.0
+    inference_skip: 1
+    description: "Maximum attention during critical confirmation phase"
+
+transitions:
+  # Conditions to escalate TO CHECKING mode
+  to_checking:
+    risk_threshold: 0.3            # risk > 0.3 triggers CHECKING
+    quality_unstable_threshold: 0.5  # quality variance > 0.5 = unstable
+    
+    # KEY RULE: UNKNOWN + elevated risk = CHECKING, never LOW_POWER
+    # This ensures the system tries to improve observation before deciding
+    unknown_with_risk: true
+    unknown_risk_threshold: 0.4    # UNKNOWN + risk > 0.4 = CHECKING
+    
+  # Conditions to escalate TO CONFIRMING mode
+  to_confirming:
+    risk_threshold: 0.6            # risk > 0.6 triggers CONFIRMING
+    quality_min: 0.4               # need minimum quality to enter CONFIRMING
+    consecutive_risk_frames: 3     # need N consecutive high-risk frames
+    
+  # Conditions to de-escalate TO LOW_POWER mode
+  to_low_power:
+    consecutive_ok_seconds: 5.0    # need 5s of OK state
+    require_high_quality: true     # only if quality is good
+    quality_min: 0.6               # minimum quality to trust OK state
+    risk_max: 0.2                  # risk must be below this
+
+# Timing and smoothing
+timing:
+  mode_switch_cooldown: 1.0        # minimum seconds between mode switches
+  fps_smoothing_window: 5          # frames to average for FPS calculation
+
+# Resource budget hints (for Jetson optimization later)
+resources:
+  max_power_watts: null            # null = no limit (PC mode)
+  prefer_efficiency: false         # if true, bias toward LOW_POWER

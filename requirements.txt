@@ -1,0 +1,25 @@
+# Pose Risk Detection System - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core ML
+ultralytics>=8.0.0          # YOLO-Pose model
+torch>=2.0.0                # PyTorch for inference
+
+# Computer Vision
+opencv-python>=4.8.0        # Video capture and visualization
+numpy>=1.24.0               # Array operations
+
+# Configuration
+pyyaml>=6.0                 # YAML config parsing
+
+# Testing (optional)
+pytest>=7.0.0               # Unit testing
+
+# Optional dependencies for future Jetson deployment:
+# tensorrt                  # TensorRT inference (install separately on Jetson)
+# pycuda                    # CUDA bindings for TensorRT
+
+# Optional for ROS2 integration:
+# rclpy                     # ROS2 Python client (install via ROS2)
+# sensor_msgs               # ROS2 sensor messages (install via ROS2)
+# cv_bridge                 # ROS2 OpenCV bridge (install via ROS2)

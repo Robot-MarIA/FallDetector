@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fall Detection - Maria</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #000;
+            --panel: rgba(255, 255, 255, 0.05);
+            --panel-border: rgba(255, 255, 255, 0.10);
+            --text: #fff;
+            --muted: rgba(255, 255, 255, 0.60);
+            --dim: rgba(255, 255, 255, 0.40);
+            --accent: #0A84FF;
+            --success: #32D74B;
+            --warn: #FF9F0A;
+            --danger: #FF453A;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 12px;
+            padding: 12px;
+            height: 100vh;
+        }
+
+        .video-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: calc(100vh - 24px);
+        }
+
+        .video-stack .video-panel {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .status-dot.analyzing {
+            background: var(--warn);
+            box-shadow: 0 0 10px var(--warn);
+        }
+
+        .status-dot.fall {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        .status-text {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .position-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .position-value {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .metric-big {
+            font-size: 40px;
+            font-weight: 300;
+            line-height: 1;
+        }
+
+        /* Video panels */
+        .video-panel {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .video-title {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .video-container {
+            position: relative;
+            flex: 1;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #111;
+        }
+
+        .video-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #skeleton-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .video-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.70);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 4px 10px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .badge-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        /* Log */
+        .log-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+
+        .log-item-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
+        .log-dot.ok {
+            background: var(--success);
+        }
+
+        .log-dot.warn {
+            background: var(--warn);
+        }
+
+        .log-dot.danger {
+            background: var(--danger);
+        }
+
+        .log-dot.info {
+            background: var(--accent);
+        }
+
+        .log-text {
+            font-size: 12px;
+            flex: 1;
+        }
+
+        .log-time {
+            font-size: 10px;
+            color: var(--dim);
+        }
+
+        .divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.10);
+            margin: 16px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--muted);
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 300;
+        }
+
+        .clock {
+            font-size: 28px;
+            font-weight: 300;
+            margin-top: auto;
+            padding-top: 12px;
+        }
+
+        .footer-note {
+            font-size: 10px;
+            color: var(--dim);
+            margin-top: auto;
+            line-height: 1.5;
+        }
+
+        .footer-note .danger {
+            color: var(--danger);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Left Panel -->
+        <div class="panel">
+            <div class="panel-header">Estado</div>
+
+            <div class="status-card">
+                <div class="status-row">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span class="status-text" id="status-text">Normal</span>
+                </div>
+                <div class="position-label">Posición</div>
+                <div class="position-value" id="position-text">De pie</div>
+            </div>
+
+            <div class="metric-label">Confianza</div>
+            <div class="metric-big" id="confidence-text">0%</div>
+
+            <div class="footer-note">
+                Sistema activo<br>
+                <span class="danger">Alerta solo en caída confirmada</span>
+            </div>
+        </div>
+
+        <!-- Video Stack (RGB + Depth) -->
+        <div class="video-stack">
+            <!-- RGB Panel -->
+            <div class="panel video-panel">
+                <div class="video-title">RGB</div>
+                <div class="video-container">
+                    <img id="video-rgb" src="/video" alt="RGB">
+                    <canvas id="skeleton-canvas"></canvas>
+                    <div class="video-badge">
+                        <div class="badge-dot" id="live-dot"></div>
+                        <span id="fps-badge">0 fps</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Depth Panel -->
+            <div class="panel video-panel">
+                <div class="video-title">Depth</div>
+                <div class="video-container">
+                    <img id="video-depth" src="/depth" alt="Depth">
+                    <div class="video-badge">
+                        <div class="badge-dot" style="background: var(--accent);"></div>
+                        <span>Profundidad</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="panel">
+            <div class="panel-header">Registro</div>
+
+            <div class="log-list" id="log-list"></div>
+
+            <div class="divider"></div>
+
+            <div class="panel-header">Sistema</div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">FPS</div>
+                    <div class="stat-value" id="fps-stat">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Cámara</div>
+                    <div class="stat-value" style="color: var(--success);">●</div>
+                </div>
+            </div>
+
+            <div class="clock" id="clock">00:00:00</div>
+        </div>
+    </div>
+
+    <script>
+        const POSITIONS = {
+            'lying': 'Tumbado', 'sitting_floor': 'En el suelo', 'all_fours': 'A cuatro patas',
+            'kneeling': 'Arrodillado', 'normal': 'De pie', 'standing': 'De pie', 'unknown': 'Desconocido'
+        };
+
+        const SKELETON = [
+            [[5, 6], 'connector'],
+            [[5, 7], 'shoulder_elbow'], [[7, 9], 'elbow_wrist'],
+            [[6, 8], 'shoulder_elbow'], [[8, 10], 'elbow_wrist'],
+            [[5, 11], 'hip_shoulder'], [[6, 12], 'hip_shoulder'],
+            [[11, 12], 'connector'],
+            [[11, 13], 'knee_hip'], [[13, 15], 'ankle_knee'],
+            [[12, 14], 'knee_hip'], [[14, 16], 'ankle_knee']
+        ];
+
+        const SKEL_COLORS = {
+            'ankle_knee': '#FF82C8', 'knee_hip': '#64A0E6', 'hip_shoulder': '#B48CC8',
+            'shoulder_elbow': '#64C8DC', 'elbow_wrist': '#F0DC64', 'connector': '#D2BED2'
+        };
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const positionText = document.getElementById('position-text');
+        const confidenceText = document.getElementById('confidence-text');
+        const liveDot = document.getElementById('live-dot');
+        const fpsBadge = document.getElementById('fps-badge');
+        const fpsStat = document.getElementById('fps-stat');
+        const clock = document.getElementById('clock');
+        const logList = document.getElementById('log-list');
+        const videoRgb = document.getElementById('video-rgb');
+        const canvas = document.getElementById('skeleton-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let frameWidth = 1280, frameHeight = 720, keypoints = [];
+
+        function connectWS() {
+            const ws = new WebSocket(`ws://${location.host}/ws`);
+            ws.onmessage = (e) => updateUI(JSON.parse(e.data));
+            ws.onclose = () => setTimeout(connectWS, 1000);
+        }
+
+        function updateUI(data) {
+            statusDot.className = 'status-dot';
+            liveDot.style.background = 'var(--success)';
+
+            if (data.state === 'OK') {
+                statusText.textContent = 'Normal';
+            } else if (data.state === 'FALL') {
+                statusText.textContent = 'Caída';
+                statusDot.classList.add('fall');
+                liveDot.style.background = 'var(--danger)';
+            } else {
+                statusText.textContent = 'Analizando';
+                statusDot.classList.add('analyzing');
+                liveDot.style.background = 'var(--warn)';
+            }
+
+            positionText.textContent = POSITIONS[data.position] || 'Desconocido';
+            confidenceText.textContent = Math.round(data.quality_score * 100) + '%';
+            fpsBadge.textContent = Math.round(data.fps) + ' fps';
+            fpsStat.textContent = Math.round(data.fps);
+
+            frameWidth = data.frame_width;
+            frameHeight = data.frame_height;
+            keypoints = data.keypoints || [];
+
+            updateLog(data.log || []);
+            drawSkeleton();
+        }
+
+        function updateLog(log) {
+            logList.innerHTML = '';
+            log.slice(0, 5).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'log-item';
+                div.innerHTML = `<div class="log-item-row"><div class="log-dot ${item.level}"></div><span class="log-text">${item.text}</span></div><div class="log-time">${item.t}</div>`;
+                logList.appendChild(div);
+            });
+        }
+
+        function drawSkeleton() {
+            const rect = videoRgb.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (keypoints.length === 0) return;
+
+            const scale = Math.min(rect.width / frameWidth, rect.height / frameHeight);
+            const xOff = (rect.width - frameWidth * scale) / 2;
+            const yOff = (rect.height - frameHeight * scale) / 2;
+
+            function tr(x, y) { return [x * scale + xOff, y * scale + yOff]; }
+
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+
+            SKELETON.forEach(([pair, type]) => {
+                const [i, j] = pair;
+                if (i < keypoints.length && j < keypoints.length) {
+                    const a = keypoints[i], b = keypoints[j];
+                    if (a && b && a.c >= 0.3 && b.c >= 0.3) {
+                        const [x1, y1] = tr(a.x, a.y);
+                        const [x2, y2] = tr(b.x, b.y);
+                        ctx.strokeStyle = SKEL_COLORS[type] || '#888';
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    }
+                }
+            });
+
+            keypoints.forEach(kp => {
+                if (kp && kp.c >= 0.3) {
+                    const [x, y] = tr(kp.x, kp.y);
+                    ctx.fillStyle = 'rgba(10, 132, 255, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function updateClock() {
+            clock.textContent = new Date().toLocaleTimeString('es-ES', { hour12: false });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        window.addEventListener('resize', drawSkeleton);
+        connectWS();
+    </script>
+</body>
+
+</html>
