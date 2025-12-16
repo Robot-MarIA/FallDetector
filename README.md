@@ -25,17 +25,20 @@
 
 ## 🚀 ¡ARRANQUE RÁPIDO!
 
-**→ [Leer Tutorial Completo de Arranque](docs/START.md) ←**
-
 ```bash
-# Instalación rápida
-py -3 -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install ultralytics opencv-python pyyaml
+# 1. Clonar e instalar
+git clone <repo-url> FallDetector
+cd FallDetector
+python -m venv venv
+.\venv\Scripts\Activate.ps1  # Windows
+pip install -r requirements.txt
 
-# Ejecutar
-python main.py --source webcam --show
+# 2. Ejecutar Web Dashboard (recomendado)
+python web_server.py
+# Abrir: http://localhost:8000
 ```
+
+> **Cámara**: Usa Intel RealSense D435i automáticamente. Sin RealSense, usa webcam.
 
 ---
 
@@ -44,11 +47,9 @@ python main.py --source webcam --show
 - [Motivación](#-motivación)
 - [Características](#-características)
 - [Instalación](#-instalación)
-- [Uso Rápido](#-uso-rápido)
+- [Uso](#-uso)
 - [Arquitectura](#-arquitectura)
 - [Calibración](#-calibración)
-- [Migración a ROS2](#-migración-a-ros2)
-- [Migración a Jetson](#-migración-a-jetson)
 - [Limitaciones](#-limitaciones)
 
 ---
@@ -66,13 +67,14 @@ Los detectores de caídas tradicionales suelen ser:
 
 1. **YOLO-Pose** extrae keypoints (pose estimation pre-entrenada)
 2. **Razonamiento geométrico** analiza la postura (ángulos, alturas, proporciones)
-3. **Confirmación temporal** evita falsos positivos
+3. **Depth 2.5D** mide altura real sobre el suelo (con RealSense)
+4. **Confirmación temporal** evita falsos positivos
 
 **Ventajas:**
-- ✅ **Explicabilidad**: Cada decisión tiene una razón (`TORSO_HORIZONTAL + LOW_HEIGHT`)
+- ✅ **Explicabilidad**: Cada decisión tiene una razón (`FLOOR_CONTACT + DROP_EVENT`)
 - ✅ **Generalización**: No depende de dataset específico de caídas
-- ✅ **Calibrable**: Umbrales ajustables sin reentrenar
-- ✅ **Trazabilidad**: Logs detallados para análisis académico
+- ✅ **Calibrable**: Umbrales en metros, ajustables sin reentrenar
+- ✅ **Sofá/cama ≠ suelo**: Distingue superficies elevadas del suelo real
 
 ---
 
@@ -81,91 +83,88 @@ Los detectores de caídas tradicionales suelen ser:
 ### Estados de Salida
 | Estado | Significado | Color |
 |--------|-------------|-------|
-| `OK` | Sin riesgo detectado | 🟢 Verde |
-| `RISK` | Posible riesgo, requiere atención | 🟡 Naranja |
-| `NEEDS_HELP` | Postura de riesgo confirmada | 🔴 Rojo |
-| `UNKNOWN` | Información insuficiente | ⚪ Gris |
+| `OK` | Normal - de pie o en sofá/cama | 🟢 Verde |
+| `ANALYZING` | Evaluando o depth no confiable | 🟡 Naranja |
+| `FALL` | En suelo confirmado (≥1 segundo) | 🔴 Rojo |
 
 ### Posturas Detectadas
 - **LYING**: Persona tumbada (horizontal)
 - **SITTING_FLOOR**: Sentado en el suelo
 - **ALL_FOURS**: A cuatro patas
 - **KNEELING**: Arrodillado
-- **NORMAL**: De pie, caminando, sentado en silla
+- **NORMAL**: De pie, caminando, sentado en silla/sofá
 
 ### Características Técnicas
-- 🔄 **Temporalidad adaptativa**: Ventana de confirmación dinámica (1-5s)
-- 📊 **Quality score**: Penalización severa sin torso visible
-- ⚡ **Scheduler adaptativo**: 3 modos (LOW_POWER, CHECKING, CONFIRMING)
-- 📝 **Logs explicables**: CSV/JSON con reason strings
-- 🎯 **Selección de persona**: Bbox más grande o más centrado
+- 📐 **Depth 2.5D**: Altura real sobre suelo con RANSAC floor plane
+- 🛋️ **Discriminación sofá/cama**: No alerta si hip_height 35-80cm
+- 📉 **Detección de caída**: vertical_drop > 35cm en 1.2s
+- ⏱️ **Confirmación temporal**: 1 segundo de persistencia para confirmar
+- 🎯 **Quality gates**: No confirma rojo si depth no es confiable
 
 ---
 
 ## 🚀 Instalación
 
 ### Requisitos
-- Python 3.8+
-- Webcam o archivos de video
-- GPU recomendada (también funciona en CPU)
+- Python 3.10+
+- Intel RealSense D435i (recomendado) o webcam
+- GPU opcional (también funciona en CPU)
 
 ### Pasos
 
 ```bash
 # Clonar repositorio
-git clone <repo-url>
+git clone <repo-url> FallDetector
 cd FallDetector
 
-# Crear entorno virtual (recomendado)
+# Crear entorno virtual
 python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
+.\venv\Scripts\Activate.ps1  # Windows
+# source venv/bin/activate   # Linux/Mac
 
 # Instalar dependencias
 pip install -r requirements.txt
 
-# Descargar modelo YOLO-Pose (automático en primera ejecución)
-# El modelo yolo11n-pose.pt se descarga automáticamente
-```
-
-### Verificar instalación
-```bash
-# Ejecutar tests
-pytest tests/ -v
+# Modelo YOLO-Pose se descarga automáticamente en primera ejecución
 ```
 
 ---
 
-## 🎮 Uso Rápido
+## 🎮 Uso
 
-### Con Webcam
+### Web Dashboard (Recomendado)
+
 ```bash
+python web_server.py
+```
+
+Abrir en navegador: **http://localhost:8000**
+
+Muestra:
+- Video RGB con esqueleto superpuesto
+- Video Depth colorizado
+- Estado en tiempo real (OK/ANALYZING/FALL)
+- Métricas: FPS, confianza, altura de cadera
+
+Para cerrar: **Ctrl+C**
+
+### Modo CLI (Alternativo)
+
+```bash
+# Webcam con visualización
 python main.py --source webcam --show
+
+# Archivo de video
+python main.py --source video --path video.mp4 --show
 ```
 
-### Con Video
-```bash
-python main.py --source video --path ruta/al/video.mp4 --show
-```
+### Opciones
 
-### Scripts de Acceso Rápido (Windows)
-```bash
-# Webcam
-scripts\run_webcam.bat
-
-# Video
-scripts\run_video.bat C:\Videos\test.mp4
-```
-
-### Opciones Completas
-```bash
-python main.py --help
-
-# Ejemplos:
-python main.py --source webcam --show --verbose
-python main.py --source video --path video.mp4 --output logs/
-python main.py --source webcam --model yolo11s-pose.pt  # Modelo más preciso
-```
+| Parámetro | Descripción |
+|-----------|-------------|
+| `--no-realsense` | Forzar uso de webcam |
+| `--camera N` | Índice de webcam (defecto: 0) |
+| `--port N` | Puerto del servidor web (defecto: 8000) |
 
 ---
 

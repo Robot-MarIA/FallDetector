@@ -574,13 +574,22 @@ async def ws(websocket: WebSocket):
 
 def main():
     import argparse
+    import signal
+    import sys
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-realsense", action="store_true")
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     
-    threading.Thread(target=detection_loop, args=(not args.no_realsense, args.camera), daemon=True).start()
+    # Start detection in background thread
+    detection_thread = threading.Thread(
+        target=detection_loop, 
+        args=(not args.no_realsense, args.camera), 
+        daemon=True
+    )
+    detection_thread.start()
     
     print(f"\n{'='*50}")
     print("Fall Detection Web Dashboard")
@@ -588,10 +597,31 @@ def main():
     print(f"Dashboard: http://localhost:{args.port}")
     print(f"RGB:       http://localhost:{args.port}/video")
     print(f"Depth:     http://localhost:{args.port}/depth")
-    print(f"{'='*50}\n")
+    print(f"{'='*50}")
+    print("Press Ctrl+C to stop\n")
     
-    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
+    # Create uvicorn server with config
+    config = uvicorn.Config(app, host="0.0.0.0", port=args.port, log_level="warning")
+    server = uvicorn.Server(config)
+    
+    # Run server in a separate thread so main thread can catch Ctrl+C
+    server_thread = threading.Thread(target=server.run, daemon=True)
+    server_thread.start()
+    
+    # Wait for Ctrl+C in main thread
+    try:
+        while server_thread.is_alive():
+            server_thread.join(timeout=0.5)
+    except KeyboardInterrupt:
+        print("\n[Server] Shutting down...")
+    
+    # Force exit to ensure all threads stop
+    print("[Server] Stopped")
+    import os
+    os._exit(0)
 
 
 if __name__ == "__main__":
     main()
+
+
