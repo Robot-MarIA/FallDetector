@@ -22,7 +22,7 @@ pyyaml>=6.0                 # YAML config parsing
 # =============================================================================
 
 fastapi>=0.100.0            # Web framework
-uvicorn>=0.23.0             # ASGI server
+uvicorn[standard]>=0.23.0   # ASGI server (includes httptools, websockets)
 
 # =============================================================================
 # REALSENSE DEPTH - Optional, for Intel RealSense cameras
